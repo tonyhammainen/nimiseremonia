@@ -1,0 +1,106 @@
+@import 'tailwindcss';
+
+/* The palette as theme tokens, so every colour in the app is a utility class
+   (`bg-surface`, `text-ink-2`) rather than a hex in a component. One festive
+   light theme: the party room, the projector and the phones all look alike. */
+@theme {
+    --font-sans: ui-rounded, 'SF Pro Rounded', system-ui, sans-serif;
+    --font-display: Georgia, 'Times New Roman', serif;
+
+    --color-bg: #fbf6ef;
+    --color-surface: #f3e9dc;
+    --color-sheet: #fffdf9;
+    --color-ink: #2a1f24;
+    --color-ink-2: #574850;
+    --color-ink-3: #6e6067;
+    --color-hairline: #e6d8c8;
+    --color-accent: #7a2e5c;
+    --color-accent-ink: #5c2045;
+    --color-on-accent: #fffdf9;
+    --color-gold: #b5832a;
+    --color-gold-soft: #f6e7c4;
+    --color-success: #2f6b3f;
+    --color-success-bg: #e3f0e3;
+    --color-danger: #b3261e;
+    --color-danger-bg: #f9e3e0;
+}
+
+:root {
+    color-scheme: light;
+}
+
+html,
+body {
+    background-color: var(--color-bg);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* The reveal: each letter of the name rises in, one after another. */
+@keyframes letter-in {
+    from {
+        opacity: 0;
+        transform: translateY(0.6em) scale(0.4) rotate(-12deg);
+        filter: blur(6px);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+        filter: none;
+    }
+}
+
+@keyframes glow {
+    0%,
+    100% {
+        text-shadow: 0 0 0.15em var(--color-gold-soft);
+    }
+    50% {
+        text-shadow:
+            0 0 0.4em var(--color-gold-soft),
+            0 0 0.8em var(--color-gold);
+    }
+}
+
+.reveal-letter {
+    display: inline-block;
+    opacity: 0;
+    animation:
+        letter-in 0.7s cubic-bezier(0.2, 0.9, 0.3, 1.3) forwards,
+        glow 3s ease-in-out infinite;
+}
+
+/* The wrong-guess cross pops in and fades out. */
+@keyframes cross {
+    0% {
+        opacity: 0;
+        transform: scale(0.5);
+    }
+    20% {
+        opacity: 1;
+        transform: scale(1.1);
+    }
+    70% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    100% {
+        opacity: 0;
+        transform: scale(1);
+    }
+}
+
+.wrong-cross {
+    animation: cross 1.1s ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .reveal-letter {
+        animation: none;
+        opacity: 1;
+    }
+    .wrong-cross {
+        animation: none;
+    }
+}
