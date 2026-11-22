@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+
+# Build and test output
+dist/
+coverage/
+
+# Vercel CLI local state
+.vercel
+
+# Environment - everything except the documented dummy-value template
+.env*
+!.env.example
+*.local
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+*.swp
+
+# Logs
+*.log
