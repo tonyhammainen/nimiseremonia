@@ -1,0 +1,6 @@
+# Test code is never part of a deployment.
+*.test.ts
+*.test.tsx
+api/_tests/
+src/test/
+vitest.config.ts
