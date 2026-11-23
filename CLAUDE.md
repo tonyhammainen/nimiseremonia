@@ -52,8 +52,10 @@ have to touch one, say so out loud.
 - Every commit pushed to GitHub must use `tony.hammainen@kolumbus.fi` as both
   author and committer email, or Vercel rejects the deployment. Set it with
   `git config user.email tony.hammainen@kolumbus.fi` and verify before pushing.
-- `main` is the default branch. Never push to it directly; work on a feature
-  branch and open a PR. Merge `main` in and run the checks before opening it.
+- `main` is the default branch. Never push to it directly.
+- Every change goes on its own feature branch, with a PR from that branch
+  against `main`. Before opening each PR, bring the branch up to date with
+  `main` (merge it in if `main` has moved) and run the checks.
 - Merging is a human decision: it deploys to production.
 - Testing happens on production (rehearsal with real phones, then
   **Nollaa kaikki** in the admin view).
