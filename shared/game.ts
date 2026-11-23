@@ -13,6 +13,8 @@ export interface TimelineRow {
     id: number;
     step: Step;
     points: number | null;
+    /** Clue count for the first name, set on the row that starts the game. */
+    firstPoints?: number | null;
     startedAt: string;
 }
 
@@ -24,25 +26,48 @@ export interface GameState {
 }
 
 export type AdminAction =
-    | { type: 'startSecond'; points: number }
+    | { type: 'startSecond'; points: number; firstPoints: number }
     | { type: 'next' }
     | { type: 'pause' }
-    | { type: 'startFirst'; points: number }
+    | { type: 'startFirst' }
     | { type: 'finish' }
     | { type: 'reveal' }
     | { type: 'undo' };
 
+export interface NewRow {
+    step: Step;
+    points: number | null;
+    firstPoints?: number;
+}
+
+/** The first-name clue count set when the game started, if it has. */
+export function firstClueCount(
+    timeline: readonly TimelineRow[],
+): number | null {
+    return (
+        timeline.find((row) => row.step === 'second' && row.firstPoints)
+            ?.firstPoints ?? null
+    );
+}
+
 /** The row to append for a move, or null if the move isn't allowed now. */
 export function applyAction(
-    current: TimelineRow | null,
+    timeline: readonly TimelineRow[],
     action: Exclude<AdminAction, { type: 'undo' }>,
-): { step: Step; points: number | null } | null {
+): NewRow | null {
+    const current = timeline.at(-1) ?? null;
     const phase: Phase = current?.step ?? 'lobby';
     const points = current?.points ?? 0;
     switch (action.type) {
         case 'startSecond':
-            return phase === 'lobby' && validClueCount(action.points)
-                ? { step: 'second', points: action.points }
+            return phase === 'lobby' &&
+                validClueCount(action.points) &&
+                validClueCount(action.firstPoints)
+                ? {
+                      step: 'second',
+                      points: action.points,
+                      firstPoints: action.firstPoints,
+                  }
                 : null;
         case 'next':
             return (phase === 'second' || phase === 'first') && points > 1
@@ -50,10 +75,12 @@ export function applyAction(
                 : null;
         case 'pause':
             return phase === 'second' ? { step: 'pause', points: null } : null;
-        case 'startFirst':
-            return phase === 'pause' && validClueCount(action.points)
-                ? { step: 'first', points: action.points }
+        case 'startFirst': {
+            const count = firstClueCount(timeline);
+            return phase === 'pause' && count
+                ? { step: 'first', points: count }
                 : null;
+        }
         case 'finish':
             return phase === 'first'
                 ? { step: 'finished', points: null }

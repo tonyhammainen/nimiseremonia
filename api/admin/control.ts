@@ -9,7 +9,11 @@ import {
 import { correctKeys } from '../_lib/env.js';
 import { bodyOf, route } from '../_lib/http.js';
 import type { VercelResponse } from '../_lib/vercel.js';
-import { applyAction, type AdminAction } from '../../shared/game.js';
+import {
+    applyAction,
+    firstClueCount,
+    type AdminAction,
+} from '../../shared/game.js';
 import { computeResults } from '../../shared/scoring.js';
 
 const ACTIONS = new Set<AdminAction['type']>([
@@ -42,11 +46,12 @@ async function status(res: VercelResponse) {
         guesses: guesses.length,
         solved,
         steps: timeline.length,
+        firstClueCount: firstClueCount(timeline),
     });
 }
 
 // GET -> the live overview for the admin view.
-// POST { type, points? } -> one move along the evening (see shared/game.ts),
+// POST { type, points?, firstPoints? } -> one move along the evening (see shared/game.ts),
 // or { type: 'undo' } to delete the latest timeline row. Guesses are scored
 // after the fact against the timeline, so an undo re-scores the guesses made
 // since the mis-click and nobody gains or loses by it.
@@ -67,12 +72,13 @@ export default route(
             if (!current) return res.status(409).json({ error: 'action' });
             await deleteStep(current.id);
         } else {
-            const next = applyAction(current, {
+            const next = applyAction(timeline, {
                 type,
                 points: body.points,
+                firstPoints: body.firstPoints,
             } as Exclude<AdminAction, { type: 'undo' }>);
             if (!next) return res.status(409).json({ error: 'action' });
-            await appendStep(next.step, next.points);
+            await appendStep(next);
         }
         await broadcastChanged();
         return status(res);

@@ -39,17 +39,17 @@ when they first guessed right.
 
 ## The evening
 
-| Admin (`/admin`)                                 | Guests' phones                        |
-| ------------------------------------------------ | ------------------------------------- |
-| –                                                | Pick a nickname, wait in the lobby    |
-| Set N → **Aloita toinen nimi**                   | "Arvaa toinen nimi · Np vihje"        |
-| **Seuraava vihje** per slide                     | Clue value drops; ✕ or "Oikein! +N p" |
-| **Tauko**                                        | "Jännitys tiivistyy.."                |
-| Set K → **Aloita etunimi** → **Seuraava vihje**… | "Arvaa etunimi · Kp vihje"            |
-| **Lopeta**                                       | "Jännitys tiivistyy.."                |
-| **Paljasta nimi**                                | Confetti and the full name            |
-| **Tulokset**: winners per name and combined      | –                                     |
-| **Väärät arvaukset** on the big screen           | –                                     |
+| Admin (`/admin`)                                               | Guests' phones                        |
+| -------------------------------------------------------------- | ------------------------------------- |
+| –                                                              | Pick a nickname, wait in the lobby    |
+| Set both clue counts (default 5 / 13) → **Aloita toinen nimi** | "Arvaa toinen nimi · Np vihje"        |
+| **Seuraava vihje** per slide                                   | Clue value drops; ✕ or "Oikein! +N p" |
+| **Tauko**                                                      | "Jännitys tiivistyy.."                |
+| **Aloita etunimi** → **Seuraava vihje**…                       | "Arvaa etunimi · Kp vihje"            |
+| **Lopeta**                                                     | "Jännitys tiivistyy.."                |
+| **Paljasta nimi**                                              | Confetti and the full name            |
+| **Tulokset**: winners per name and combined                    | –                                     |
+| **Väärät arvaukset** on the big screen                         | –                                     |
 
 **Takaisin** undoes the last click: guesses made meanwhile are re-scored
 against the previous clue. One guess per 10 s per guest, enforced in the
