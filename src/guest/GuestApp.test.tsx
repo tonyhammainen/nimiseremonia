@@ -66,18 +66,18 @@ describe('GuestApp', () => {
         },
     );
 
-    it('reveals the full name to everyone, joined or not', async () => {
+    it('reveals the full name, capitalized, to everyone, joined or not', async () => {
         stubApi(
             {
                 phase: 'revealed',
                 cluePoints: null,
-                names: { first: 'Aatos', second: 'Kuura' },
+                names: { first: 'aatos', second: 'anna-liisa' },
             },
             { status: 401, body: {} },
         );
         render(<GuestApp />);
         expect(
-            await screen.findByRole('heading', { name: 'Aatos Kuura' }),
+            await screen.findByRole('heading', { name: 'Aatos Anna-Liisa' }),
         ).toBeInTheDocument();
     });
 });
