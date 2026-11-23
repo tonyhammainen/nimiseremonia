@@ -1,5 +1,5 @@
 import { supabaseConfig } from './env.js';
-import type { Step, TimelineRow } from '../../shared/game.js';
+import type { NewRow, TimelineRow } from '../../shared/game.js';
 import type { GuessRow, PlayerRow } from '../../shared/scoring.js';
 
 // A thin client for Supabase's REST API (PostgREST) with the service-role key.
@@ -76,7 +76,8 @@ async function selectAll<T>(table: string, query: string): Promise<T[]> {
     }
 }
 
-const TIMELINE_COLUMNS = 'select=id,step,points,startedAt:started_at';
+const TIMELINE_COLUMNS =
+    'select=id,step,points,firstPoints:first_points,startedAt:started_at';
 const GUESS_COLUMNS =
     'select=playerId:player_id,text,textKey:text_key,createdAt:created_at';
 
@@ -96,13 +97,14 @@ export async function currentRow(): Promise<TimelineRow | null> {
     return rows[0] ?? null;
 }
 
-export async function appendStep(
-    step: Step,
-    points: number | null,
-): Promise<void> {
+export async function appendStep(row: NewRow): Promise<void> {
     await request('/rest/v1/timeline', {
         method: 'POST',
-        body: JSON.stringify({ step, points }),
+        body: JSON.stringify({
+            step: row.step,
+            points: row.points,
+            ...(row.firstPoints ? { first_points: row.firstPoints } : {}),
+        }),
     });
 }
 

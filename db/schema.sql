@@ -34,6 +34,13 @@ create table if not exists public.guesses (
     created_at timestamptz not null default clock_timestamp()
 );
 
+-- Both clue counts are set before the game starts: the first-name count rides
+-- on the row that starts the second-name round, and the first-name round
+-- starts from it.
+alter table public.timeline
+    add column if not exists first_points int
+    check (first_points is null or first_points > 0);
+
 create index if not exists guesses_player_created_idx
     on public.guesses (player_id, created_at);
 create index if not exists timeline_started_idx

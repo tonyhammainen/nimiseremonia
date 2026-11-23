@@ -10,6 +10,7 @@ interface Status {
     guesses: number;
     solved: number | null;
     steps: number;
+    firstClueCount: number | null;
 }
 
 const PHASE_LABEL: Record<Phase, string> = {
@@ -30,14 +31,21 @@ interface Move {
 }
 
 /** The big button's move for this moment, and any secondary ones. */
-function movesFor(status: Status, clueCount: number): Move[] {
+function movesFor(
+    status: Status,
+    counts: { second: number; first: number },
+): Move[] {
     const p = status.cluePoints ?? 0;
     switch (status.phase) {
         case 'lobby':
             return [
                 {
-                    label: `Aloita toinen nimi (${clueCount} p)`,
-                    action: { type: 'startSecond', points: clueCount },
+                    label: `Aloita toinen nimi (${counts.second} p)`,
+                    action: {
+                        type: 'startSecond',
+                        points: counts.second,
+                        firstPoints: counts.first,
+                    },
                 },
             ];
         case 'second':
@@ -59,9 +67,9 @@ function movesFor(status: Status, clueCount: number): Move[] {
         case 'pause':
             return [
                 {
-                    label: `Aloita etunimi (${clueCount} p)`,
-                    action: { type: 'startFirst', points: clueCount },
-                    confirm: `Aloitetaanko etunimen arvaaminen ${clueCount} pisteen vihjeellä?`,
+                    label: `Aloita etunimi (${status.firstClueCount} p)`,
+                    action: { type: 'startFirst' },
+                    confirm: `Aloitetaanko etunimen arvaaminen ${status.firstClueCount} pisteen vihjeellä?`,
                 },
             ];
         case 'first':
@@ -95,7 +103,7 @@ function movesFor(status: Status, clueCount: number): Move[] {
 
 export default function Control() {
     const [status, setStatus] = useState<Status | null>(null);
-    const [clueCount, setClueCount] = useState(10);
+    const [counts, setCounts] = useState({ second: 5, first: 13 });
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -160,9 +168,8 @@ export default function Control() {
 
     if (!status) return <p className="p-6 text-ink-3">Ladataan…</p>;
 
-    const moves = movesFor(status, clueCount);
+    const moves = movesFor(status, counts);
     const [primary, ...secondary] = moves;
-    const asksClueCount = status.phase === 'lobby' || status.phase === 'pause';
 
     return (
         <main className="mx-auto flex max-w-md flex-col gap-5 px-4 py-6">
@@ -194,25 +201,47 @@ export default function Control() {
                 </dl>
             </section>
 
-            {asksClueCount && (
-                <label className="flex items-center justify-between gap-3 text-ink-2">
-                    {status.phase === 'lobby'
-                        ? 'Toisen nimen vihjeitä'
-                        : 'Etunimen vihjeitä'}
-                    <input
-                        type="number"
-                        inputMode="numeric"
-                        min={1}
-                        max={100}
-                        value={clueCount}
-                        onChange={(e) =>
-                            setClueCount(
-                                Math.max(1, Math.round(Number(e.target.value))),
-                            )
-                        }
-                        className="w-24 rounded-xl border-2 border-hairline bg-sheet px-3 py-2 text-center text-xl"
-                    />
-                </label>
+            {status.phase === 'lobby' && (
+                <fieldset className="flex flex-col gap-3">
+                    <legend className="mb-2 font-semibold text-ink">
+                        Vihjeiden määrät
+                    </legend>
+                    {(
+                        [
+                            ['second', 'Toinen nimi'],
+                            ['first', 'Etunimi'],
+                        ] as const
+                    ).map(([key, label]) => (
+                        <label
+                            key={key}
+                            className="flex items-center justify-between gap-3 text-ink-2"
+                        >
+                            {label}
+                            <input
+                                type="number"
+                                inputMode="numeric"
+                                min={1}
+                                max={100}
+                                value={counts[key]}
+                                onChange={(e) =>
+                                    setCounts((current) => ({
+                                        ...current,
+                                        [key]: Math.min(
+                                            100,
+                                            Math.max(
+                                                1,
+                                                Math.round(
+                                                    Number(e.target.value),
+                                                ) || 1,
+                                            ),
+                                        ),
+                                    }))
+                                }
+                                className="w-24 rounded-xl border-2 border-hairline bg-sheet px-3 py-2 text-center text-xl"
+                            />
+                        </label>
+                    ))}
+                </fieldset>
             )}
 
             {primary && (

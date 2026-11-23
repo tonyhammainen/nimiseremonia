@@ -92,6 +92,54 @@ describe('admin routes', () => {
         );
     });
 
+    it('starts the game with both clue counts and keeps the first-name one', async () => {
+        const calls = stubSupabase({ 'GET /rest/v1/timeline': [] });
+        const { sent, res } = createResponse();
+        await control(
+            createRequest({
+                method: 'POST',
+                body: { type: 'startSecond', points: 8, firstPoints: 6 },
+                cookie: adminCookie(),
+            }),
+            res,
+        );
+        expect(sent.statusCode).toBe(200);
+        expect(
+            calls.find(
+                (c) => c.method === 'POST' && c.path === '/rest/v1/timeline',
+            )?.body,
+        ).toEqual({ step: 'second', points: 8, first_points: 6 });
+    });
+
+    it('starts the first name from the stored count', async () => {
+        const calls = stubSupabase({
+            'GET /rest/v1/timeline': [
+                {
+                    id: 1,
+                    step: 'second',
+                    points: 1,
+                    firstPoints: 6,
+                    startedAt: at,
+                },
+                { id: 2, step: 'pause', points: null, startedAt: at },
+            ],
+        });
+        const { res } = createResponse();
+        await control(
+            createRequest({
+                method: 'POST',
+                body: { type: 'startFirst' },
+                cookie: adminCookie(),
+            }),
+            res,
+        );
+        expect(
+            calls.find(
+                (c) => c.method === 'POST' && c.path === '/rest/v1/timeline',
+            )?.body,
+        ).toEqual({ step: 'first', points: 6 });
+    });
+
     it('cannot reveal the names during a round', async () => {
         const calls = stubSupabase({
             'GET /rest/v1/timeline': [
