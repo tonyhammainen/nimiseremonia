@@ -3,6 +3,17 @@ import confetti from 'canvas-confetti';
 
 const LETTER_DELAY_S = 0.18;
 
+/** `anna-liisa` → `Anna-Liisa`: the payload is lower case. */
+function capitalizeName(name: string): string {
+    return name
+        .toLocaleLowerCase('fi')
+        .replace(
+            /(^|[\s-])(\p{L})/gu,
+            (_, sep: string, letter: string) =>
+                sep + letter.toLocaleUpperCase('fi'),
+        );
+}
+
 /** Confetti in the background and the full name rising in letter by letter. */
 export default function Reveal({
     names,
@@ -32,7 +43,7 @@ export default function Reveal({
         };
     }, []);
 
-    const words = [names.first, names.second];
+    const words = [names.first, names.second].map(capitalizeName);
     // Each letter's place in the whole name, so the second word continues
     // where the first left off.
     const offsets = words.map((_, w) =>
