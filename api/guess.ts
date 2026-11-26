@@ -1,5 +1,4 @@
 import { DbError, FOREIGN_KEY_VIOLATION, rpc } from './_lib/db.js';
-import { correctKeys } from './_lib/env.js';
 import { bodyOf, route } from './_lib/http.js';
 import { clearPlayerCookie, playerIdFrom } from './_lib/session.js';
 import { normalize } from '../shared/normalize.js';
@@ -8,19 +7,19 @@ import { GUESS_MAX } from '../shared/game.js';
 type SubmitResult =
     | {
           status: 'ok';
-          correct: boolean;
+          text: string;
           savedAt: string;
           cooldownMs: number;
       }
     | { status: 'cooldown'; retryAfterMs: number }
-    | { status: 'closed' | 'solved' | 'conflict' };
+    | { status: 'closed' | 'conflict' };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-// POST { id, text }. The rules - a round must be running, a solved name stays
-// solved, one guess per 10 s - are enforced atomically by `submit_guess` in the
-// database (db/schema.sql). The correct answer is compared against the name
-// being guessed right now only.
+// POST { id, text } -> the accepted guess. The rules - a round must be running,
+// one guess per 10 s - are enforced atomically by `submit_guess` in the
+// database (db/schema.sql). Whether the guess is right is never said: guests
+// find out at the reveal. Correctness is worked out afterwards by scoring.
 export default route(['POST'], async (req, res) => {
     const playerId = playerIdFrom(req);
     if (!playerId) return res.status(401).json({ error: 'player' });
@@ -33,7 +32,6 @@ export default route(['POST'], async (req, res) => {
         return res.status(400).json({ error: 'guess' });
     }
 
-    const keys = correctKeys();
     let result: SubmitResult;
     try {
         result = await rpc<SubmitResult>('submit_guess', {
@@ -41,8 +39,6 @@ export default route(['POST'], async (req, res) => {
             p_id: id,
             p_text: text,
             p_key: key,
-            p_second_key: keys.second,
-            p_first_key: keys.first,
         });
     } catch (error) {
         // The player was removed by "Nollaa kaikki".
@@ -56,8 +52,7 @@ export default route(['POST'], async (req, res) => {
     switch (result.status) {
         case 'ok':
             return res.status(200).json({
-                correct: result.correct,
-                savedAt: result.savedAt,
+                guess: { text: result.text, savedAt: result.savedAt },
                 cooldownMs: result.cooldownMs,
             });
         case 'cooldown':

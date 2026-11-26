@@ -67,18 +67,19 @@ as $$
     limit 1
 $$;
 
--- Saves one guess, enforcing the rules atomically. The correct names are passed
--- in (already normalized) by the API, so they are never stored in the database.
--- Statuses: ok | closed (no round running) | solved (already guessed this name)
--- | cooldown (previous guess under 10 s ago) | conflict (id taken by another
--- player).
+-- The earlier version also took the correct names, to answer right or wrong.
+-- Guests no longer learn that, so the names never reach the database at all.
+drop function if exists public.submit_guess(uuid, uuid, text, text, text, text);
+
+-- Saves one guess, enforcing the rules atomically. Every guess is stored,
+-- right or wrong, repeats included; scoring decides afterwards what counts.
+-- Statuses: ok | closed (no round running) | cooldown (previous guess under
+-- 10 s ago) | conflict (id taken by another player).
 create or replace function public.submit_guess(
     p_player uuid,
     p_id uuid,
     p_text text,
-    p_key text,
-    p_second_key text,
-    p_first_key text
+    p_key text
 )
 returns jsonb
 language plpgsql
@@ -88,7 +89,6 @@ declare
     v_cooldown constant interval := interval '10 seconds';
     v_existing public.guesses;
     v_step public.timeline;
-    v_target text;
     v_last timestamptz;
     v_now timestamptz;
 begin
@@ -102,13 +102,9 @@ begin
         if v_existing.player_id <> p_player then
             return jsonb_build_object('status', 'conflict');
         end if;
-        v_step := public.step_at(v_existing.created_at);
         return jsonb_build_object(
             'status', 'ok',
-            'correct', v_existing.text_key = case v_step.step
-                when 'second' then p_second_key
-                when 'first' then p_first_key
-            end,
+            'text', v_existing.text,
             'savedAt', v_existing.created_at,
             'cooldownMs', greatest(0, ceil(extract(epoch from
                 v_existing.created_at + v_cooldown - clock_timestamp()) * 1000))::int
@@ -119,17 +115,6 @@ begin
     v_step := public.step_at(v_now);
     if v_step.id is null or v_step.step not in ('second', 'first') then
         return jsonb_build_object('status', 'closed');
-    end if;
-    v_target := case v_step.step when 'second' then p_second_key else p_first_key end;
-
-    if exists (
-        select 1
-        from public.guesses g
-        where g.player_id = p_player
-          and g.text_key = v_target
-          and (public.step_at(g.created_at)).step = v_step.step
-    ) then
-        return jsonb_build_object('status', 'solved');
     end if;
 
     select max(created_at) into v_last
@@ -148,7 +133,7 @@ begin
 
     return jsonb_build_object(
         'status', 'ok',
-        'correct', p_key = v_target,
+        'text', p_text,
         'savedAt', v_now,
         'cooldownMs', (extract(epoch from v_cooldown) * 1000)::int
     );
@@ -166,10 +151,10 @@ $$;
 
 -- Only the API (service role) may call these.
 revoke all on function public.step_at(timestamptz) from public, anon, authenticated;
-revoke all on function public.submit_guess(uuid, uuid, text, text, text, text)
+revoke all on function public.submit_guess(uuid, uuid, text, text)
     from public, anon, authenticated;
 revoke all on function public.reset_game() from public, anon, authenticated;
 grant execute on function public.step_at(timestamptz) to service_role;
-grant execute on function public.submit_guess(uuid, uuid, text, text, text, text)
+grant execute on function public.submit_guess(uuid, uuid, text, text)
     to service_role;
 grant execute on function public.reset_game() to service_role;

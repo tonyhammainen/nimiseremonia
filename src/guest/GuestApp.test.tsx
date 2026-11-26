@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import GuestApp from './GuestApp';
 
 vi.mock('canvas-confetti', () => ({
@@ -22,7 +22,7 @@ const player = {
     status: 200,
     body: {
         username: 'Anni',
-        solved: { second: true, first: false },
+        guesses: { second: ['Ilo', 'Väinö'], first: ['Eino'] },
         cooldownMs: 0,
     },
 };
@@ -48,11 +48,17 @@ describe('GuestApp', () => {
         expect(screen.getByLabelText('Arvauksesi')).toBeInTheDocument();
     });
 
-    it('keeps a solved name locked', async () => {
+    it("lists this round's own guesses, newest first, and keeps the form", async () => {
         stubApi({ phase: 'second', cluePoints: 3 }, player);
         render(<GuestApp />);
-        expect(await screen.findByText('Oikein!')).toBeInTheDocument();
-        expect(screen.queryByLabelText('Arvauksesi')).not.toBeInTheDocument();
+        const list = await screen.findByRole('list');
+        expect(
+            within(list)
+                .getAllByRole('listitem')
+                .map((item) => item.textContent),
+        ).toEqual(['Väinö', 'Ilo']);
+        expect(screen.queryByText('Eino')).not.toBeInTheDocument();
+        expect(screen.getByLabelText('Arvauksesi')).toBeInTheDocument();
     });
 
     it.each(['pause', 'finished'])(

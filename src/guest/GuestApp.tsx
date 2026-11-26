@@ -8,7 +8,8 @@ import type { NameKey } from '../../shared/game';
 
 interface Me {
     username: string;
-    solved: Record<NameKey, boolean>;
+    /** What this guest has guessed in each round, oldest first. */
+    guesses: Record<NameKey, string[]>;
     cooldownMs: number;
 }
 
@@ -30,11 +31,6 @@ export default function GuestApp() {
     // undefined: still asking the server; null: this phone hasn't joined.
     const [me, setMe] = useState<Me | null | undefined>(undefined);
     const [nextAt, setNextAt] = useState(0);
-    // A correct guess made on this screen, shown as "+N p" for that round.
-    const [scored, setScored] = useState<{
-        phase: NameKey;
-        points: number | null;
-    } | null>(null);
 
     const loadMe = useCallback(async () => {
         try {
@@ -61,16 +57,23 @@ export default function GuestApp() {
     }, [loadMe]);
 
     const phase = state?.phase;
-    const cluePoints = state?.cluePoints ?? null;
-    const onCorrect = useCallback(() => {
-        if (phase !== 'second' && phase !== 'first') return;
-        setScored({ phase, points: cluePoints });
-        setMe((current) =>
-            current
-                ? { ...current, solved: { ...current.solved, [phase]: true } }
-                : current,
-        );
-    }, [phase, cluePoints]);
+    const onGuessed = useCallback(
+        (text: string) => {
+            if (phase !== 'second' && phase !== 'first') return;
+            setMe((current) =>
+                current
+                    ? {
+                          ...current,
+                          guesses: {
+                              ...current.guesses,
+                              [phase]: [...current.guesses[phase], text],
+                          },
+                      }
+                    : current,
+            );
+        },
+        [phase],
+    );
 
     const onStale = useCallback(() => {
         void refresh();
@@ -94,7 +97,7 @@ export default function GuestApp() {
                 onJoined={(username) => {
                     setMe({
                         username,
-                        solved: { second: false, first: false },
+                        guesses: { second: [], first: [] },
                         cooldownMs: 0,
                     });
                 }}
@@ -112,8 +115,7 @@ export default function GuestApp() {
             </Centered>
         );
     } else if (state.phase === 'second' || state.phase === 'first') {
-        const solved = me.solved[state.phase];
-        const justScored = scored?.phase === state.phase ? scored.points : null;
+        const guessed = me.guesses[state.phase];
         content = (
             <div className="flex flex-col gap-6">
                 <header className="text-center">
@@ -124,30 +126,34 @@ export default function GuestApp() {
                         {state.cluePoints}p vihje
                     </p>
                 </header>
-                {solved ? (
-                    <div
-                        role="status"
-                        className="rounded-2xl bg-success-bg px-4 py-8 text-center"
-                    >
-                        <p className="text-4xl font-black text-success">
-                            Oikein!
-                            {justScored !== null && ` +${justScored} p`}
-                        </p>
-                        <p className="mt-2 text-ink-2">
-                            {state.phase === 'second'
-                                ? 'Odota etunimeä.'
-                                : 'Odota paljastusta.'}
-                        </p>
-                    </div>
-                ) : (
-                    <GuessForm
-                        key={state.phase}
-                        nextAt={nextAt}
-                        setNextAt={setNextAt}
-                        onCorrect={onCorrect}
-                        onStale={onStale}
-                        onUnauthorized={onUnauthorized}
-                    />
+                <GuessForm
+                    key={state.phase}
+                    nextAt={nextAt}
+                    setNextAt={setNextAt}
+                    guessed={guessed}
+                    onGuessed={onGuessed}
+                    onStale={onStale}
+                    onUnauthorized={onUnauthorized}
+                />
+                {guessed.length > 0 && (
+                    <section aria-labelledby="own-guesses">
+                        <h2
+                            id="own-guesses"
+                            className="mb-2 text-center text-lg font-bold text-ink-2"
+                        >
+                            Aiemmat arvauksesi
+                        </h2>
+                        <ul className="flex flex-col gap-2">
+                            {[...guessed].reverse().map((text) => (
+                                <li
+                                    key={text}
+                                    className="rounded-xl bg-surface px-4 py-2 text-center text-lg font-bold tracking-wide text-ink uppercase"
+                                >
+                                    {text}
+                                </li>
+                            ))}
+                        </ul>
+                    </section>
                 )}
             </div>
         );

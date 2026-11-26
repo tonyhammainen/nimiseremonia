@@ -1,11 +1,10 @@
 import { findPlayer, loadGuesses, loadTimeline } from './_lib/db.js';
-import { correctKeys } from './_lib/env.js';
 import { route } from './_lib/http.js';
 import { clearPlayerCookie, playerIdFrom } from './_lib/session.js';
-import { hasSolved, toMicros } from '../shared/scoring.js';
+import { ownGuesses, toMicros } from '../shared/scoring.js';
 import { COOLDOWN_MS } from '../shared/game.js';
 
-// GET -> who this phone is, which names it has already guessed, and how long
+// GET -> who this phone is, what it has guessed in each round, and how long
 // until it may guess again. Read when the app opens or wakes; after that the
 // guess responses keep the phone up to date.
 export default route(['GET'], async (req, res) => {
@@ -20,17 +19,13 @@ export default route(['GET'], async (req, res) => {
         loadTimeline(),
         loadGuesses(player.id),
     ]);
-    const keys = correctKeys();
     const last = guesses.at(-1);
     const sinceLast = last
         ? Date.now() - toMicros(last.createdAt) / 1000
         : Infinity;
     return res.status(200).json({
         username: player.username,
-        solved: {
-            second: hasSolved(timeline, guesses, 'second', keys.second),
-            first: hasSolved(timeline, guesses, 'first', keys.first),
-        },
+        guesses: ownGuesses(timeline, guesses),
         cooldownMs: Math.max(0, Math.ceil(COOLDOWN_MS - sinceLast)),
     });
 });

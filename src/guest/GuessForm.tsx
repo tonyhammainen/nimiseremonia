@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { post } from '../api';
+import { normalize } from '../../shared/normalize';
 
 interface GuessOk {
-    correct: boolean;
+    guess: { text: string; savedAt: string };
     cooldownMs: number;
 }
 
@@ -10,7 +11,10 @@ interface Props {
     /** performance.now() time from which the next guess may be sent. */
     nextAt: number;
     setNextAt: (at: number) => void;
-    onCorrect: () => void;
+    /** What this guest has already guessed in this round. */
+    guessed: readonly string[];
+    /** The server stored a guess. Never says whether it was right. */
+    onGuessed: (text: string) => void;
     /** The server says the round or the player changed; reload both. */
     onStale: () => void;
     onUnauthorized: () => void;
@@ -21,18 +25,22 @@ const NETWORK_RETRY_MS = 2_000;
 
 /**
  * One guess at a time. A guess typed before the 10 s cooldown is over waits
- * here, still editable, and goes out when the countdown reaches zero.
+ * here, still editable, and goes out when the countdown reaches zero. A text
+ * already guessed this round is not sent again. Nothing here says whether a
+ * guess was right: that waits for the reveal.
  */
 export default function GuessForm({
     nextAt,
     setNextAt,
-    onCorrect,
+    guessed,
+    onGuessed,
     onStale,
     onUnauthorized,
 }: Props) {
     const [text, setText] = useState('');
     const [status, setStatus] = useState<'idle' | 'sending' | 'queued'>('idle');
-    const [wrongFlash, setWrongFlash] = useState(0);
+    // What happened to the last guess, for the line under the form.
+    const [notice, setNotice] = useState<'sent' | 'repeat' | null>(null);
     const [note, setNote] = useState<string | null>(null);
     const [now, setNow] = useState(() => performance.now());
     // True while a guess that failed to reach the server waits to be resent.
@@ -41,6 +49,14 @@ export default function GuessForm({
     // a retry after a lost answer can't count twice.
     const pending = useRef<{ id: string; text: string; tries: number } | null>(
         null,
+    );
+
+    const isRepeat = useCallback(
+        (candidate: string) => {
+            const key = normalize(candidate);
+            return guessed.some((g) => normalize(g) === key);
+        },
+        [guessed],
     );
 
     const send = useCallback(async () => {
@@ -52,10 +68,16 @@ export default function GuessForm({
             setStatus('idle');
             return;
         }
+        if (!pending.current && isRepeat(guess.text)) {
+            setNotice('repeat');
+            setStatus('idle');
+            return;
+        }
         pending.current = guess;
         setStatus('sending');
         setRetrying(false);
         setNote(null);
+        setNotice(null);
         try {
             const { status: code, body } = await post<
                 GuessOk & { retryAfterMs?: number }
@@ -72,14 +94,9 @@ export default function GuessForm({
             setStatus('idle');
             if (code === 200) {
                 setNextAt(performance.now() + body.cooldownMs);
-                if (body.correct) {
-                    onCorrect();
-                } else {
-                    setWrongFlash((n) => n + 1);
-                    setText((current) =>
-                        current === guess.text ? '' : current,
-                    );
-                }
+                setNotice('sent');
+                setText((current) => (current === guess.text ? '' : current));
+                onGuessed(body.guess.text);
             } else if (code === 401) {
                 onUnauthorized();
             } else if (code === 409) {
@@ -100,7 +117,7 @@ export default function GuessForm({
                 setStatus('idle');
             }
         }
-    }, [text, onCorrect, onStale, onUnauthorized, setNextAt]);
+    }, [text, isRepeat, onGuessed, onStale, onUnauthorized, setNextAt]);
 
     useEffect(() => {
         if (status !== 'queued') return;
@@ -118,6 +135,11 @@ export default function GuessForm({
     const submit = (event: React.FormEvent) => {
         event.preventDefault();
         if (!text.trim() || status !== 'idle') return;
+        if (isRepeat(text)) {
+            setNotice('repeat');
+            return;
+        }
+        setNotice(null);
         if (performance.now() >= nextAt) {
             void send();
         } else {
@@ -141,32 +163,25 @@ export default function GuessForm({
             <label htmlFor="guess" className="sr-only">
                 Arvauksesi
             </label>
-            <div className="relative">
-                <input
-                    id="guess"
-                    value={text}
-                    onChange={(e) => setText(e.target.value)}
-                    maxLength={40}
-                    autoComplete="off"
-                    autoCorrect="off"
-                    autoCapitalize="off"
-                    spellCheck={false}
-                    enterKeyHint="send"
-                    placeholder="Kirjoita arvaus"
-                    className="w-full rounded-2xl border-2 border-hairline bg-sheet px-4 py-4 text-center text-2xl font-bold tracking-wide text-ink uppercase placeholder:font-normal placeholder:tracking-normal placeholder:text-ink-3 placeholder:normal-case focus:border-accent focus:outline-none"
-                />
-                {wrongFlash > 0 && (
-                    <span
-                        key={wrongFlash}
-                        aria-hidden="true"
-                        className="wrong-cross pointer-events-none absolute inset-0 flex items-center justify-center text-6xl font-black text-danger"
-                    >
-                        ✕
-                    </span>
-                )}
-            </div>
-            <p role="status" className="sr-only">
-                {wrongFlash > 0 ? `Väärin (${wrongFlash})` : ''}
+            <input
+                id="guess"
+                value={text}
+                onChange={(e) => {
+                    setText(e.target.value);
+                    if (notice === 'repeat') setNotice(null);
+                }}
+                maxLength={40}
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
+                enterKeyHint="send"
+                placeholder="Kirjoita arvaus"
+                className="w-full rounded-2xl border-2 border-hairline bg-sheet px-4 py-4 text-center text-2xl font-bold tracking-wide text-ink uppercase placeholder:font-normal placeholder:tracking-normal placeholder:text-ink-3 placeholder:normal-case focus:border-accent focus:outline-none"
+            />
+            <p role="status" className="min-h-6 text-center text-ink-2">
+                {notice === 'sent' && 'Arvaus vastaanotettu'}
+                {notice === 'repeat' && 'Olet jo arvannut tämän'}
             </p>
             {waiting ? (
                 <div

@@ -25,18 +25,28 @@ function stubGuessApi(...replies: Reply[]) {
     return sent;
 }
 
-const ok = (correct: boolean): Reply => ({
+const ok = (text = 'Ilo'): Reply => ({
     status: 200,
-    body: { correct, savedAt: '2026-12-05T20:00:00Z', cooldownMs: 10_000 },
+    body: {
+        guess: { text, savedAt: '2026-12-05T20:00:00Z' },
+        cooldownMs: 10_000,
+    },
 });
 
-function Harness({ onCorrect = () => {} }: { onCorrect?: () => void }) {
+function Harness({
+    guessed = [],
+    onGuessed = () => {},
+}: {
+    guessed?: string[];
+    onGuessed?: (text: string) => void;
+}) {
     const [nextAt, setNextAt] = useState(0);
     return (
         <GuessForm
             nextAt={nextAt}
             setNextAt={setNextAt}
-            onCorrect={onCorrect}
+            guessed={guessed}
+            onGuessed={onGuessed}
             onStale={() => {}}
             onUnauthorized={() => {}}
         />
@@ -73,25 +83,37 @@ describe('GuessForm', () => {
         vi.unstubAllGlobals();
     });
 
-    it('sends a guess at once and flashes a cross when it is wrong', async () => {
-        const sent = stubGuessApi(ok(false));
-        render(<Harness />);
+    it('sends a guess at once and only says it was received', async () => {
+        const sent = stubGuessApi(ok('Ilo'));
+        const onGuessed = vi.fn();
+        render(<Harness onGuessed={onGuessed} />);
         await guess(user, 'Ilo');
         expect(sent.map((g) => g.text)).toEqual(['Ilo']);
-        expect(await screen.findByText('Väärin (1)')).toBeInTheDocument();
+        expect(
+            await screen.findByText('Arvaus vastaanotettu'),
+        ).toBeInTheDocument();
+        expect(onGuessed).toHaveBeenCalledWith('Ilo');
         expect(screen.getByLabelText('Arvauksesi')).toHaveValue('');
     });
 
-    it('tells the round it was right', async () => {
-        stubGuessApi(ok(true));
-        const onCorrect = vi.fn();
-        render(<Harness onCorrect={onCorrect} />);
-        await guess(user, 'Kuura');
-        await vi.waitFor(() => expect(onCorrect).toHaveBeenCalledOnce());
+    it('does not send a guess already made this round', async () => {
+        const sent = stubGuessApi(ok());
+        render(<Harness guessed={['Aatos']} />);
+        await guess(user, ' aatos ');
+        expect(screen.getByText('Olet jo arvannut tämän')).toBeInTheDocument();
+        expect(sent).toHaveLength(0);
+        expect(screen.getByLabelText('Arvauksesi')).toHaveValue(' aatos ');
+    });
+
+    it('treats accented letters as different letters', async () => {
+        const sent = stubGuessApi(ok('Äätos'));
+        render(<Harness guessed={['Aatos']} />);
+        await guess(user, 'Äätos');
+        expect(sent.map((g) => g.text)).toEqual(['Äätos']);
     });
 
     it('holds a guess made within 10 s and sends the edited text when the time is up', async () => {
-        const sent = stubGuessApi(ok(false), ok(false));
+        const sent = stubGuessApi(ok(), ok());
         render(<Harness />);
         await guess(user, 'Ilo');
         await act(() => vi.advanceTimersByTimeAsync(3_000));
@@ -114,7 +136,7 @@ describe('GuessForm', () => {
     });
 
     it('does not send a held guess that was cancelled', async () => {
-        const sent = stubGuessApi(ok(false));
+        const sent = stubGuessApi(ok());
         render(<Harness />);
         await guess(user, 'Ilo');
         await guess(user, 'Väinö');
@@ -127,7 +149,7 @@ describe('GuessForm', () => {
     it('waits as long as the server says when it refuses a guess as too early', async () => {
         const sent = stubGuessApi(
             { status: 429, body: { error: 'cooldown', retryAfterMs: 5_000 } },
-            ok(false),
+            ok(),
         );
         render(<Harness />);
         await guess(user, 'Ilo');
@@ -146,7 +168,7 @@ describe('GuessForm', () => {
             vi.fn(async (_path: string, init: RequestInit) => {
                 sent.push(JSON.parse(String(init.body)).id);
                 if (calls++ === 0) throw new TypeError('Failed to fetch');
-                return new Response(JSON.stringify(ok(false).body));
+                return new Response(JSON.stringify(ok().body));
             }),
         );
         render(<Harness />);

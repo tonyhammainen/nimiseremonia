@@ -2,7 +2,8 @@
 // which name was being guessed, which clue was on, how many points it was
 // worth - comes from matching its timestamp to the timeline here. Deleting a
 // timeline row (the admin's undo) therefore re-scores the guesses made
-// meanwhile without touching them.
+// meanwhile without touching them. Every guess is stored, repeats included;
+// only a player's first guess of a given text in a round counts.
 
 import type { NameKey, TimelineRow } from './game.js';
 
@@ -95,7 +96,11 @@ interface MatchedGuess extends GuessRow {
     row: TimelineRow;
 }
 
-/** Each guess with the clue it was made during, grouped by the name guessed. */
+/**
+ * Each guess with the clue it was made during, grouped by the name guessed,
+ * oldest first. A repeat - same player, same text, same name - is dropped, so
+ * only the first time counts.
+ */
 function matchGuesses(
     timeline: readonly TimelineRow[],
     guesses: readonly GuessRow[],
@@ -107,8 +112,16 @@ function matchGuesses(
             byName[row.step].push({ ...guess, row });
         }
     }
-    for (const list of Object.values(byName)) {
-        list.sort((a, b) => toMicros(a.createdAt) - toMicros(b.createdAt));
+    for (const name of Object.keys(byName) as NameKey[]) {
+        const seen = new Set<string>();
+        byName[name] = byName[name]
+            .sort((a, b) => toMicros(a.createdAt) - toMicros(b.createdAt))
+            .filter((g) => {
+                const key = `${g.playerId}\u0000${g.textKey}`;
+                if (seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            });
     }
     return byName;
 }
@@ -223,16 +236,16 @@ export function computeResults(
     };
 }
 
-/** Whether a player has already guessed this name correctly. */
-export function hasSolved(
+/** One player's guesses per name, oldest first, repeats dropped. */
+export function ownGuesses(
     timeline: readonly TimelineRow[],
     guesses: readonly GuessRow[],
-    name: NameKey,
-    correctKey: string,
-): boolean {
-    return matchGuesses(timeline, guesses)[name].some(
-        (g) => g.textKey === correctKey,
-    );
+): Record<NameKey, string[]> {
+    const matched = matchGuesses(timeline, guesses);
+    return {
+        second: matched.second.map((g) => g.text),
+        first: matched.first.map((g) => g.text),
+    };
 }
 
 /** Wrong guesses for each name, most common first. */

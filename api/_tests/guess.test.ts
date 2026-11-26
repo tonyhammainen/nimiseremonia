@@ -51,11 +51,11 @@ describe('POST /api/guess', () => {
         expect(calls).toHaveLength(0);
     });
 
-    it('sends the guess and both answers normalized to the database', async () => {
+    it('stores the guess and answers with it, never with right or wrong', async () => {
         const calls = stubSupabase({
             [RPC]: {
                 status: 'ok',
-                correct: true,
+                text: 'KUURA',
                 savedAt: '2026-12-05T20:00:00+00:00',
                 cooldownMs: 10000,
             },
@@ -63,18 +63,29 @@ describe('POST /api/guess', () => {
         const sent = await post({ id: ID, text: '  KUURA ' });
         expect(sent.statusCode).toBe(200);
         expect(sent.body).toEqual({
-            correct: true,
-            savedAt: '2026-12-05T20:00:00+00:00',
+            guess: { text: 'KUURA', savedAt: '2026-12-05T20:00:00+00:00' },
             cooldownMs: 10000,
         });
+        // The correct names are never sent to the database.
         expect(calls[0].body).toEqual({
             p_player: PLAYER_ID,
             p_id: ID,
             p_text: 'KUURA',
             p_key: 'kuura',
-            p_second_key: 'kuura',
-            p_first_key: 'aatos',
         });
+    });
+
+    it('keeps accents in the stored key', async () => {
+        const calls = stubSupabase({
+            [RPC]: {
+                status: 'ok',
+                text: 'Äätos',
+                savedAt: '2026-12-05T20:00:00+00:00',
+                cooldownMs: 10000,
+            },
+        });
+        await post({ id: ID, text: 'Äätos' });
+        expect(calls[0].body).toMatchObject({ p_key: 'äätos' });
     });
 
     it('answers 429 with the wait while the cooldown runs', async () => {
@@ -84,7 +95,7 @@ describe('POST /api/guess', () => {
         expect(sent.body).toEqual({ error: 'cooldown', retryAfterMs: 4200 });
     });
 
-    it.each(['closed', 'solved'])('answers 409 when %s', async (status) => {
+    it.each(['closed', 'conflict'])('answers 409 when %s', async (status) => {
         stubSupabase({ [RPC]: { status } });
         const sent = await post({ id: ID, text: 'Ilo' });
         expect(sent.statusCode).toBe(409);

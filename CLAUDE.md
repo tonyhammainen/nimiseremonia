@@ -29,13 +29,20 @@ have to touch one, say so out loud.
 - **Guesses are raw facts.** A row in `guesses` holds who, what and when -
   never the round, clue or points. Scoring matches each guess to the latest
   `timeline` row whose `started_at` is not after the guess, in
-  `shared/scoring.ts` (and the same match in SQL inside `submit_guess`). That is
-  what makes **Takaisin** a true undo: deleting the latest timeline row
-  re-matches the guesses made meanwhile to the previous clue.
+  `shared/scoring.ts`. That is what makes **Takaisin** a true undo: deleting
+  the latest timeline row re-matches the guesses made meanwhile to the
+  previous clue.
+- **Guests never learn whether a guess was right.** `/api/guess` returns only
+  the accepted guess and `/api/me` only the guest's own guesses; the guest UI
+  shows no right/wrong and never locks a solved round.
+- **Repeats are stored but count once.** Every guess is stored; scoring keeps
+  only a player's first guess of a given `text_key` per round
+  (`matchGuesses` in `shared/scoring.ts`). The phone also refuses to resend
+  one, but that is a convenience, not the enforcement point.
 - **The correct names never leave the server before the reveal.** They live
-  only in env vars, are not stored in the database, are not in the bundle, and
-  `/api/state` includes them only when the latest timeline step is `revealed`.
-  `api/_tests/state.test.ts` guards this.
+  only in env vars, are not stored in or sent to the database, are not in the
+  bundle, and `/api/state` includes them only when the latest timeline step
+  is `revealed`. `api/_tests/state.test.ts` guards this.
 - **The 10 second limit is enforced in the database.** `submit_guess` takes a
   per-player advisory lock, so parallel requests cannot both pass. The UI
   limit is a convenience, never the enforcement point.

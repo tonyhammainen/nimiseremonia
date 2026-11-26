@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { TimelineRow } from './game.js';
 import {
     computeResults,
-    hasSolved,
+    ownGuesses,
     rowAt,
     toMicros,
     wrongGuesses,
@@ -111,7 +111,7 @@ describe('computeResults', () => {
     });
 
     it('ignores guesses that never existed after a correct one', () => {
-        // The database refuses them, but the scoring must not depend on that.
+        // Guests may keep guessing after a correct guess; those don't count.
         const results = computeResults(
             players,
             timeline,
@@ -186,11 +186,51 @@ describe('computeResults', () => {
     });
 });
 
-describe('hasSolved', () => {
-    it('is per name', () => {
-        const guesses = [guess('a', 'Kuura', 20)];
-        expect(hasSolved(timeline, guesses, 'second', KEYS.second)).toBe(true);
-        expect(hasSolved(timeline, guesses, 'first', KEYS.first)).toBe(false);
+describe('repeated guesses', () => {
+    it('counts only the first time a player guesses the same text in a round', () => {
+        const results = computeResults(
+            players,
+            timeline,
+            [
+                guess('a', 'Ilo', 10),
+                { ...guess('a', 'ILO ', 30), textKey: 'ilo' },
+                guess('a', 'Kuura', 150),
+            ],
+            KEYS,
+        );
+        expect(results.second[0]).toMatchObject({
+            username: 'Anni',
+            points: 2,
+            guesses: 2,
+        });
+    });
+
+    it('keeps accented and plain letters apart', () => {
+        const results = computeResults(
+            players,
+            timeline,
+            [guess('a', 'Äätos', 410), guess('a', 'Aatos', 450)],
+            KEYS,
+        );
+        // ÄÄTOS is a different, wrong guess; AATOS is right on the second try.
+        expect(results.first[0]).toMatchObject({ points: 2, guesses: 2 });
+    });
+
+    it('lets the same text be guessed once in each round', () => {
+        const guesses = [guess('a', 'Ilo', 10), guess('a', 'Ilo', 410)];
+        expect(ownGuesses(timeline, guesses)).toEqual({
+            second: ['Ilo'],
+            first: ['Ilo'],
+        });
+    });
+
+    it('drops a repeat that an undo moved into the same round', () => {
+        const guesses = [guess('a', 'Ilo', 250), guess('a', 'Ilo', 410)];
+        const undone = timeline.filter((row) => row.id < 4);
+        expect(ownGuesses(undone, guesses)).toEqual({
+            second: ['Ilo'],
+            first: [],
+        });
     });
 });
 
