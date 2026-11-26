@@ -13,6 +13,7 @@ import {
     applyAction,
     firstClueCount,
     type AdminAction,
+    type NameKey,
 } from '../../shared/game.js';
 import { computeResults } from '../../shared/scoring.js';
 
@@ -35,14 +36,22 @@ async function status(res: VercelResponse) {
     const current = timeline.at(-1) ?? null;
     const phase = current?.step ?? 'lobby';
     const results = computeResults(players, timeline, guesses, correctKeys());
-    const solved =
-        phase === 'second' || phase === 'first'
-            ? results[phase].filter((s) => s.points > 0).length
-            : null;
+    // The name of the current round, or of the round just played.
+    const name: NameKey | null =
+        phase === 'second' || phase === 'pause'
+            ? 'second'
+            : phase === 'lobby'
+              ? null
+              : 'first';
+    const solved = name
+        ? results[name].filter((s) => s.points > 0).length
+        : null;
     return res.status(200).json({
         phase,
         cluePoints: current?.points ?? null,
         players: players.length,
+        playerNames: players.map((p) => p.username),
+        solvedName: name,
         guesses: guesses.length,
         solved,
         steps: timeline.length,

@@ -1,14 +1,17 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, post } from '../api';
 import { onGameChanged } from '../realtime';
-import type { AdminAction, Phase } from '../../shared/game';
+import type { AdminAction, NameKey, Phase } from '../../shared/game';
 
 interface Status {
     phase: Phase;
     cluePoints: number | null;
     players: number;
+    playerNames: string[];
     guesses: number;
     solved: number | null;
+    /** The name `solved` counts: the current round's, or the one just played. */
+    solvedName: NameKey | null;
     steps: number;
     firstClueCount: number | null;
 }
@@ -193,12 +196,41 @@ export default function Control() {
                         <dd className="text-xl font-bold">{status.guesses}</dd>
                     </div>
                     <div>
-                        <dt className="text-ink-3">Arvannut oikein</dt>
-                        <dd className="text-xl font-bold">
-                            {status.solved ?? '–'}
+                        <dt className="text-ink-3">
+                            {status.solvedName === 'first'
+                                ? 'Etunimi oikein'
+                                : 'Toinen nimi oikein'}
+                        </dt>
+                        <dd className="text-xl font-bold tabular-nums">
+                            {status.solved === null
+                                ? '–'
+                                : `${status.solved}/${status.players}`}
                         </dd>
                     </div>
                 </dl>
+            </section>
+
+            <section aria-labelledby="players-heading">
+                <h2
+                    id="players-heading"
+                    className="mb-2 font-semibold text-ink"
+                >
+                    Pelaajat ({status.playerNames.length})
+                </h2>
+                {status.playerNames.length === 0 ? (
+                    <p className="text-ink-3">Ei vielä pelaajia</p>
+                ) : (
+                    <ul className="flex flex-wrap gap-1.5">
+                        {status.playerNames.map((name, i) => (
+                            <li
+                                key={`${i}-${name}`}
+                                className="rounded-full bg-surface px-3 py-1 text-sm text-ink"
+                            >
+                                {name}
+                            </li>
+                        ))}
+                    </ul>
+                )}
             </section>
 
             {status.phase === 'lobby' && (

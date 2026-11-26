@@ -159,6 +159,49 @@ describe('admin routes', () => {
         expect(calls.filter((c) => c.method === 'POST')).toHaveLength(0);
     });
 
+    it('lists the players and counts who solved the name just played', async () => {
+        stubSupabase({
+            'GET /rest/v1/players': [
+                { id: 'a', username: 'Anni' },
+                { id: 'b', username: 'Benjamin' },
+                { id: 'c', username: 'Cecilia' },
+            ],
+            'GET /rest/v1/timeline': [
+                { id: 1, step: 'second', points: 3, startedAt: at },
+                {
+                    id: 2,
+                    step: 'pause',
+                    points: null,
+                    startedAt: '2026-12-05T20:10:00+00:00',
+                },
+            ],
+            'GET /rest/v1/guesses': [
+                {
+                    playerId: 'a',
+                    text: 'Kuura',
+                    textKey: 'kuura',
+                    createdAt: '2026-12-05T20:01:00+00:00',
+                },
+                {
+                    playerId: 'b',
+                    text: 'Ilo',
+                    textKey: 'ilo',
+                    createdAt: '2026-12-05T20:02:00+00:00',
+                },
+            ],
+        });
+        const { sent, res } = createResponse();
+        await control(createRequest({ cookie: adminCookie() }), res);
+        expect(sent.statusCode).toBe(200);
+        expect(sent.body).toMatchObject({
+            phase: 'pause',
+            players: 3,
+            playerNames: ['Anni', 'Benjamin', 'Cecilia'],
+            solved: 1,
+            solvedName: 'second',
+        });
+    });
+
     it('undoes a mis-click by deleting the latest timeline row', async () => {
         const calls = stubSupabase({
             'GET /rest/v1/timeline': [
